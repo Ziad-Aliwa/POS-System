@@ -3,11 +3,44 @@
 @section('title', 'Orders')
 
 @section('content')
-    <h2 class="mb-4">Orders</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0">Orders & Sales History</h2>
+        <a href="{{ route('orders.export', request()->query()) }}" class="btn btn-success">
+            📊 Export to Excel (CSV)
+        </a>
+    </div>
 
-    {{-- Live Search --}}
-    <div class="mb-3">
-        <input type="text" id="searchInput" class="form-control" placeholder="Search by customer name...">
+    {{-- Filter Bar --}}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body p-3">
+            <form method="GET" action="{{ route('orders.index') }}" class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Customer Name</label>
+                    <input type="text" name="search" value="{{ request('search') }}" class="form-control form-control-sm" placeholder="Search customer...">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold">Payment Method</label>
+                    <select name="payment_method" class="form-select form-select-sm">
+                        <option value="">All Methods</option>
+                        <option value="cash" {{ request('payment_method') === 'cash' ? 'selected' : '' }}>Cash</option>
+                        <option value="card" {{ request('payment_method') === 'card' ? 'selected' : '' }}>Card</option>
+                        <option value="transfer" {{ request('payment_method') === 'transfer' ? 'selected' : '' }}>Transfer</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold">From Date</label>
+                    <input type="date" name="from_date" value="{{ request('from_date') }}" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold">To Date</label>
+                    <input type="date" name="to_date" value="{{ request('to_date') }}" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-primary flex-grow-1">Filter</button>
+                    <a href="{{ route('orders.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div class="table-responsive">
@@ -16,6 +49,9 @@
                 <tr>
                     <th>#</th>
                     <th>Customer</th>
+                    <th>Cashier</th>
+                    <th>Payment</th>
+                    <th>Discount</th>
                     <th>Total</th>
                     <th>Date</th>
                     @if (in_array(auth()->user()->role, ['admin', 'cashier']))
@@ -27,23 +63,47 @@
                 @forelse($orders as $order)
                     <tr>
                         <td>{{ $order->id }}</td>
-                        <td>{{ $order->customer->name ?? '-' }}</td>
-                        <td>${{ number_format($order->total_price, 2) }}</td>
+                        <td>
+                            <strong>{{ $order->customer->name ?? '-' }}</strong>
+                            @if($order->customer && $order->customer->phone)
+                                <br><small class="text-muted">{{ $order->customer->phone }}</small>
+                            @endif
+                        </td>
+                        <td>{{ $order->user->name ?? '-' }}</td>
+                        <td>
+                            @if($order->payment_method === 'cash')
+                                <span class="badge bg-success">💵 Cash</span>
+                            @elseif($order->payment_method === 'card')
+                                <span class="badge bg-primary">💳 Card</span>
+                            @elseif($order->payment_method === 'transfer')
+                                <span class="badge bg-info text-dark">🏦 Transfer</span>
+                            @else
+                                <span class="badge bg-secondary">{{ ucfirst($order->payment_method ?? 'Cash') }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if($order->discount > 0)
+                                <span class="text-danger">-${{ number_format($order->discount, 2) }}</span>
+                            @else
+                                <span class="text-muted">$0.00</span>
+                            @endif
+                        </td>
+                        <td><strong class="text-primary">${{ number_format($order->total_price, 2) }}</strong></td>
                         <td>{{ $order->created_at->format('Y-m-d H:i') }}</td>
                         <td>
                             <div class="d-flex justify-content-start gap-2">
                                 @if (auth()->user()->role === 'admin')
                                     <button class="btn btn-sm btn-danger w-auto" data-bs-toggle="modal"
                                         data-bs-target="#confirmDeleteModal" data-id="{{ $order->id }}"
-                                        data-customer="{{ $order->customer->name }}"
+                                        data-customer="{{ $order->customer->name ?? 'N/A' }}"
                                         data-total="{{ number_format($order->total_price, 2) }}">
                                         Delete
                                     </button>
                                 @endif
 
-                                <form action="{{ route('orders.print', $order->id) }}" method="GET" target="_blank" style="height: 10px">
-                                    <button class="btn btn-sm btn-primary w-auto">Print</button>
-                                </form>
+                                <a href="{{ route('orders.print', $order->id) }}" target="_blank" class="btn btn-sm btn-primary w-auto">
+                                    Print PDF
+                                </a>
 
                                 <a href="{{ route('orders.show', $order->id) }}"
                                     class="btn btn-sm btn-info text-white w-auto">
@@ -51,11 +111,10 @@
                                 </a>
                             </div>
                         </td>
-
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center">No orders found.</td>
+                        <td colspan="8" class="text-center py-4 text-muted">No orders found.</td>
                     </tr>
                 @endforelse
             </tbody>

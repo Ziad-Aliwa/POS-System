@@ -13,7 +13,7 @@
             {{-- Product Image --}}
             <div class="col-md-4">
                 @if ($product->image)
-                    <img src="{{ asset($product->image) }}" class="card-img-top" alt="{{ $product->name }}"
+                    <img src="{{ $product->image }}" class="card-img-top" alt="{{ $product->name }}"
                         style="height: 150px; object-fit: contain; background-color: #ffffff;">
                 @else
                     <img src="https://via.placeholder.com/300x200?text=No+Image" class="card-img-top" alt="No Image"

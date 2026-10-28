@@ -21,6 +21,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
     ];
 
     /**
@@ -48,6 +49,10 @@ class User extends Authenticatable
         return $this->hasMany(Order::class);
     }
 
+    public function shifts()
+    {
+        return $this->hasMany(Shift::class);
+    }
 
     public function cart()
     {

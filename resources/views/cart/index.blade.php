@@ -71,37 +71,99 @@
             <p class="text-muted">Your cart is currently empty.</p>
         @endif
 
-        {{-- Checkout Form --}}
+        {{-- Checkout Form & Payment Panel --}}
         @if ($items->count())
-            <form action="{{ route('checkout.process') }}" method="POST">
-                @csrf
-                <div class="mb-3">
-                    <label for="customer_id" class="form-label fw-semibold">Choose Customer:</label>
-
-                    <select name="customer_id" id="customer_id"
-                        class="form-select @error('customer_id') is-invalid @enderror" required>
-                        <option value="" disabled selected>Select a customer</option>
-                        @foreach (App\Models\Customer::orderBy('name')->get() as $customer)
-                            <option value="{{ $customer->id }}"
-                                {{ old('customer_id') == $customer->id ? 'selected' : '' }}>
-                                {{ $customer->name }}
-                            </option>
-                        @endforeach
-                    </select>
-
-                    @error('customer_id')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
+            <div class="card mt-4 border-0 shadow-sm">
+                <div class="card-header bg-dark text-white fw-bold">
+                    💳 Complete Transaction & Payment
                 </div>
+                <div class="card-body">
+                    <form action="{{ route('checkout.process') }}" method="POST" id="checkoutForm">
+                        @csrf
+                        <div class="row g-3">
+                            {{-- Customer Selection --}}
+                            <div class="col-md-6">
+                                <label for="customer_id" class="form-label fw-semibold">Choose Customer:</label>
+                                <div class="input-group">
+                                    <select name="customer_id" id="customer_id"
+                                        class="form-select @error('customer_id') is-invalid @enderror" required>
+                                        <option value="" disabled selected>Select a customer</option>
+                                        @foreach (App\Models\Customer::orderBy('name')->get() as $customer)
+                                            <option value="{{ $customer->id }}"
+                                                {{ old('customer_id') == $customer->id ? 'selected' : '' }}>
+                                                {{ $customer->name }} ({{ $customer->phone ?? 'No phone' }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal"
+                                        data-bs-target="#addCustomerModal">
+                                        + New Customer
+                                    </button>
+                                </div>
+                                @error('customer_id')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </div>
 
-                <input type="hidden" name="total" value="{{ $total }}">
-                <button type="submit" class="btn btn-primary">Checkout</button>
-                <!-- Button trigger modal -->
-                <button type="button" class="btn btn-outline-secondary ms-2" data-bs-toggle="modal"
-                    data-bs-target="#addCustomerModal">
-                    + Add Customer
-                </button>
-            </form>
+                            {{-- Payment Method Selection --}}
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Payment Method:</label>
+                                <div class="btn-group w-100" role="group">
+                                    <input type="radio" class="btn-check" name="payment_method" id="pay_cash" value="cash" checked autocomplete="off">
+                                    <label class="btn btn-outline-success" for="pay_cash">💵 Cash</label>
+
+                                    <input type="radio" class="btn-check" name="payment_method" id="pay_card" value="card" autocomplete="off">
+                                    <label class="btn btn-outline-primary" for="pay_card">💳 Card</label>
+
+                                    <input type="radio" class="btn-check" name="payment_method" id="pay_transfer" value="transfer" autocomplete="off">
+                                    <label class="btn btn-outline-info" for="pay_transfer">🏦 Transfer</label>
+                                </div>
+                            </div>
+
+                            {{-- Discount Input --}}
+                            <div class="col-md-4">
+                                <label for="discount" class="form-label fw-semibold">Discount ($):</label>
+                                <input type="number" step="0.01" min="0" name="discount" id="discountInput" 
+                                       class="form-control" value="0.00">
+                            </div>
+
+                            {{-- Cash Received (Only for Cash) --}}
+                            <div class="col-md-4" id="cashReceivedContainer">
+                                <label for="paidAmountInput" class="form-label fw-semibold">Cash Tendered / Received ($):</label>
+                                <input type="number" step="0.01" min="0" name="paid_amount" id="paidAmountInput" 
+                                       class="form-control" value="{{ number_format($total, 2, '.', '') }}">
+                            </div>
+
+                            {{-- Change / الباقي --}}
+                            <div class="col-md-4" id="changeAmountContainer">
+                                <label class="form-label fw-semibold text-success">Change / Remaining ($):</label>
+                                <input type="text" id="changeAmountDisplay" class="form-control fw-bold text-success bg-light" 
+                                       value="$0.00" readonly>
+                            </div>
+
+                            {{-- Notes --}}
+                            <div class="col-12">
+                                <label for="notes" class="form-label fw-semibold">Order Notes (Optional):</label>
+                                <input type="text" name="notes" id="notes" class="form-control" placeholder="e.g. Table 5, expedited delivery, etc.">
+                            </div>
+                        </div>
+
+                        {{-- Calculation Summary --}}
+                        <div class="border rounded p-3 mt-4 bg-light d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="text-muted">Subtotal: <strong id="summary-subtotal">${{ number_format($total, 2) }}</strong></span> | 
+                                <span class="text-muted">Discount: <strong id="summary-discount" class="text-danger">-$0.00</strong></span>
+                            </div>
+                            <div>
+                                <span class="fs-4 fw-bold me-3">Total Payable: <span id="summary-final-total" class="text-primary">${{ number_format($total, 2) }}</span></span>
+                                <button type="submit" class="btn btn-success btn-lg px-4">
+                                    ✔ Process Checkout
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
         @endif
 
 
@@ -249,16 +311,59 @@
             });
         });
 
-        function updateCartTotal() {
-            let total = 0;
+        const discountInput = document.getElementById('discountInput');
+        const paidAmountInput = document.getElementById('paidAmountInput');
+        const changeAmountDisplay = document.getElementById('changeAmountDisplay');
+        const cashContainer = document.getElementById('cashReceivedContainer');
+        const changeContainer = document.getElementById('changeAmountContainer');
+        const summarySubtotal = document.getElementById('summary-subtotal');
+        const summaryDiscount = document.getElementById('summary-discount');
+        const summaryFinalTotal = document.getElementById('summary-final-total');
+
+        function recalculatePayment() {
+            let subtotal = 0;
             document.querySelectorAll('.qty-input').forEach(input => {
                 const itemId = input.dataset.id;
                 const quantity = parseInt(input.value);
                 const price = parseFloat(document.getElementById(`subtotal-${itemId}`).dataset.price);
-                total += quantity * price;
+                subtotal += quantity * price;
             });
 
-            document.getElementById('cart-total').textContent = `$${total.toFixed(2)}`;
+            const discount = discountInput ? Math.max(0, parseFloat(discountInput.value) || 0) : 0;
+            const finalTotal = Math.max(0, subtotal - discount);
+
+            if (summarySubtotal) summarySubtotal.textContent = `$${subtotal.toFixed(2)}`;
+            if (summaryDiscount) summaryDiscount.textContent = `-$${discount.toFixed(2)}`;
+            if (summaryFinalTotal) summaryFinalTotal.textContent = `$${finalTotal.toFixed(2)}`;
+            document.getElementById('cart-total').textContent = `$${subtotal.toFixed(2)}`;
+
+            const selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value || 'cash';
+            if (selectedPaymentMethod === 'cash') {
+                if (cashContainer) cashContainer.style.display = '';
+                if (changeContainer) changeContainer.style.display = '';
+                const paidAmount = parseFloat(paidAmountInput.value) || 0;
+                const change = Math.max(0, paidAmount - finalTotal);
+                if (changeAmountDisplay) changeAmountDisplay.value = `$${change.toFixed(2)}`;
+            } else {
+                if (cashContainer) cashContainer.style.display = 'none';
+                if (changeContainer) changeContainer.style.display = 'none';
+            }
         }
+
+        if (discountInput) {
+            discountInput.addEventListener('input', recalculatePayment);
+        }
+        if (paidAmountInput) {
+            paidAmountInput.addEventListener('input', recalculatePayment);
+        }
+        document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
+            radio.addEventListener('change', recalculatePayment);
+        });
+
+        function updateCartTotal() {
+            recalculatePayment();
+        }
+
+        recalculatePayment();
     });
 </script>

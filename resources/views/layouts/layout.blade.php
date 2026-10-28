@@ -10,40 +10,57 @@
 
 <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="/">POS System</a>
-            @if (auth()->check() && in_array(auth()->user()->role, ['admin' , 'cashier']))
-                <a href="{{ route('orders.index') }}" class="nav-link text-white ms-3">Orders</a>
-            @endif
-
-            @if (auth()->check() && in_array(auth()->user()->role, ['admin']))
-                <a href="{{ route('products.all_products') }}" class="nav-link text-white ms-3">Products</a>
-                <a href="{{ route('customers.index') }}" class="nav-link text-white ms-3">Customers</a>
-            @endif
-
-            <div class="d-flex ms-auto">
-                @if (auth()->check() && in_array(auth()->user()->role, ['admin', 'cashier']))
-                    <ul class="navbar-nav me-auto">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-bold" href="/">🛍️ POS System</a>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    @if (auth()->check() && in_array(auth()->user()->role, ['admin']))
                         <li class="nav-item">
-                            <a href="{{ route('cart.index') }}" class="nav-link text-white">
-                                🛒 Cart <span id="cart-count" class="badge bg-light text-dark">0</span>
-                            </a>
+                            <a href="{{ route('admin.dashboard') }}" class="nav-link text-white">Dashboard</a>
                         </li>
-                    </ul>
-                @endif
+                    @endif
 
-                &nbsp;&nbsp;&nbsp;
-                @if (auth()->check())
-                    <form action="{{ route('logout') }}" method="POST" class="d-inline">
-                        @csrf
-                        <button type="submit" class="btn btn-outline-light btn-sm">
-                            Logout ({{ auth()->user()->name }})
-                        </button>
-                    </form>
-                @else
-                    <a href="{{ route('login') }}" class="btn btn-outline-light btn-sm me-2">Login</a>
-                    <a href="{{ route('register') }}" class="btn btn-outline-light btn-sm">Register</a>
-                @endif
+                    @if (auth()->check() && in_array(auth()->user()->role, ['admin' , 'cashier']))
+                        <li class="nav-item">
+                            <a href="{{ route('products.index') }}" class="nav-link text-white fw-bold text-warning">⚡ POS Terminal</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ route('orders.index') }}" class="nav-link text-white">Orders</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ route('returns.index') }}" class="nav-link text-white">Returns</a>
+                        </li>
+                    @endif
+
+                    @if (auth()->check() && in_array(auth()->user()->role, ['admin']))
+                        <li class="nav-item">
+                            <a href="{{ route('products.all_products') }}" class="nav-link text-white">Products</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ route('customers.index') }}" class="nav-link text-white">Customers</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ route('shifts.index') }}" class="nav-link text-white">Shifts</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ route('inventory.movements') }}" class="nav-link text-white">Stock Audit</a>
+                        </li>
+                    @endif
+                </ul>
+
+                <div class="d-flex align-items-center ms-auto">
+                    @if (auth()->check())
+                        <span class="badge bg-secondary me-3">{{ ucfirst(auth()->user()->role) }}: {{ auth()->user()->name }}</span>
+                        <form action="{{ route('logout') }}" method="POST" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+                        </form>
+                    @else
+                        <a href="{{ route('login') }}" class="btn btn-outline-light btn-sm me-2">Login</a>
+                        <a href="{{ route('register') }}" class="btn btn-outline-light btn-sm">Register</a>
+                    @endif
+                </div>
             </div>
         </div>
     </nav>
@@ -79,18 +96,18 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch("{{ route('cart.count') }}")
+                .then(response => response.json())
+                .then(data => {
+                    const cartCount = document.getElementById('cart-count');
+                    if (cartCount) {
+                        cartCount.textContent = data.count;
+                    }
+                });
+        });
+    </script>
+    @yield('scripts')
 </body>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        fetch("{{ route('cart.count') }}")
-            .then(response => response.json())
-            .then(data => {
-                const cartCount = document.getElementById('cart-count');
-                if (cartCount) {
-                    cartCount.textContent = data.count;
-                }
-            });
-    });
-</script>
-
 </html>

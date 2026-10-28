@@ -80,13 +80,14 @@ class CustomerController extends Controller
         ]);
     }
 
-    public function destroy(Product $product){
+    public function destroy(Customer $customer)
+    {
         if (auth()->user()->role !== 'admin') {
             abort(403, 'Unauthorized');
         }
-        $product->delete();
 
-        return redirect()->route('customers.index')->with('success', 'Customer delete successfully!');
+        $customer->delete();
 
+        return redirect()->route('customers.index')->with('success', 'Customer deleted successfully!');
     }
 }

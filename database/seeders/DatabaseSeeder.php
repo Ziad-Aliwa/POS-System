@@ -12,18 +12,30 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // \App\Models\User::factory(10)->create();
+        // Default Admin User
+        \App\Models\User::firstOrCreate(
+            ['email' => 'admin@pos.com'],
+            [
+                'name' => 'Admin Manager',
+                'password' => \Illuminate\Support\Facades\Hash::make('password'),
+                'role' => 'admin',
+            ]
+        );
 
-        // \App\Models\User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
+        // Default Cashier User
+        \App\Models\User::firstOrCreate(
+            ['email' => 'cashier@pos.com'],
+            [
+                'name' => 'Main Cashier',
+                'password' => \Illuminate\Support\Facades\Hash::make('password'),
+                'role' => 'cashier',
+            ]
+        );
+
         $this->call([
             ProductSeeder::class,
             CustomerSeeder::class,
             OrderSeeder::class,
-
         ]);
-
     }
 }

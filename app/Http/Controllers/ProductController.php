@@ -22,12 +22,26 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
+        $category = $request->input('category');
 
-        $products = Product::when($search, function ($query, $search) {
-            return $query->where('name', 'like', "%$search%")
-                ->orWhere('category', 'like', "%$search%");
-        })->orderBy('name')->paginate(10);
-        return view('products.index', compact('products', 'search'));
+        $query = Product::query();
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%$search%")
+                    ->orWhere('category', 'like', "%$search%")
+                    ->orWhere('barcode', 'like', "%$search%");
+            });
+        }
+
+        if ($category && $category !== 'all') {
+            $query->where('category', $category);
+        }
+
+        $products = $query->orderBy('name')->paginate(16);
+        $categories = Product::select('category')->distinct()->whereNotNull('category')->pluck('category');
+
+        return view('products.index', compact('products', 'search', 'categories', 'category'));
     }
 
     public function search(Request $request)
@@ -36,7 +50,8 @@ class ProductController extends Controller
 
         $products = Product::when($search, function ($query, $search) {
             return $query->where('name', 'like', "%$search%")
-                ->orWhere('category', 'like', "%$search%");
+                ->orWhere('category', 'like', "%$search%")
+                ->orWhere('barcode', 'like', "%$search%");
         })->orderBy('name')->take(20)->get();
 
         return response()->json($products);
@@ -44,11 +59,18 @@ class ProductController extends Controller
 
 
     // admin methods
-    public function all_products()
+    public function all_products(Request $request)
     {
         $this->authorizeAdmin();
-        $products = Product::latest()->paginate(10);
-        return view('products.all_product', compact('products'));
+        $search = $request->input('search');
+
+        $products = Product::when($search, function ($query, $search) {
+            return $query->where('name', 'like', "%$search%")
+                ->orWhere('category', 'like', "%$search%")
+                ->orWhere('barcode', 'like', "%$search%");
+        })->latest()->paginate(10);
+
+        return view('products.all_product', compact('products', 'search'));
     }
 
 
@@ -66,32 +88,34 @@ class ProductController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'barcode' => 'nullable|string|max:100|unique:products,barcode',
             'category' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
+            'cost_price' => 'nullable|numeric|min:0',
             'stock_quantity' => 'required|integer|min:0',
+            'alert_quantity' => 'nullable|integer|min:0',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         $product = new Product();
-
         $product->name = $request->name;
+        $product->barcode = $request->barcode;
         $product->category = $request->category;
         $product->price = $request->price;
-        $product->stock_quantity     = $request->stock_quantity;
+        $product->cost_price = $request->cost_price ?? 0;
+        $product->stock_quantity = $request->stock_quantity;
+        $product->alert_quantity = $request->alert_quantity ?? 5;
 
         if ($request->hasFile('image')) {
             $file = $request->file('image');
             $fileName = Str::uuid()->toString() . '-' . $file->getClientOriginalName();
             $file->move(public_path('uploads'), $fileName);
             $product->image = 'uploads/' . $fileName;
-            $product->save();
         }
 
         $product->save();
 
-
-
-        return redirect()->route('products.index')->with('success', 'Product created successfully.');
+        return redirect()->route('products.all_products')->with('success', 'Product created successfully.');
     }
 
 
@@ -118,20 +142,27 @@ class ProductController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'barcode' => 'nullable|string|max:100|unique:products,barcode,' . $product->id,
             'category' => 'nullable|string|max:255',
             'price' => 'required|numeric|min:0',
+            'cost_price' => 'nullable|numeric|min:0',
             'stock_quantity' => 'required|integer|min:0',
+            'alert_quantity' => 'nullable|integer|min:0',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         $product->name = $request->name;
+        $product->barcode = $request->barcode;
         $product->category = $request->category;
         $product->price = $request->price;
+        $product->cost_price = $request->cost_price ?? $product->cost_price;
         $product->stock_quantity = $request->stock_quantity;
+        $product->alert_quantity = $request->alert_quantity ?? $product->alert_quantity;
 
         if ($request->hasFile('image')) {
-            if ($product->image && file_exists(public_path($product->image))) {
-                unlink(public_path($product->image));
+            $rawImage = $product->getRawOriginal('image');
+            if ($rawImage && file_exists(public_path($rawImage))) {
+                @unlink(public_path($rawImage));
             }
             $file = $request->file('image');
             $fileName = Str::uuid()->toString() . '-' . $file->getClientOriginalName();
@@ -141,19 +172,21 @@ class ProductController extends Controller
 
         $product->save();
 
-        return redirect()->route('products.index')->with('success', 'Product updated successfully.');
+        return redirect()->route('products.all_products')->with('success', 'Product updated successfully.');
     }
 
 
     public function destroy(Product $product)
     {
         $this->authorizeAdmin();
-        if ($product->image && Storage::disk('public')->exists($product->image)) {
-            Storage::disk('public')->delete($product->image);
+
+        $rawImage = $product->getRawOriginal('image');
+        if ($rawImage && file_exists(public_path($rawImage))) {
+            @unlink(public_path($rawImage));
         }
 
         $product->delete();
 
-        return redirect()->route('products.index')->with('success', 'Product deleted successfully.');
+        return redirect()->route('products.all_products')->with('success', 'Product deleted successfully.');
     }
 }
